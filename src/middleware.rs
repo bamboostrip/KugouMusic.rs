@@ -112,10 +112,17 @@ impl FromRequestParts<AppState> for KgReqSession {
             .unwrap_or_else(|| resolve_session_key(parts).0);
 
         // 从库加载；不存在则 default
-        let mut session = session_store::load(&state.db, &session_key)
-            .await
-            .unwrap_or_default();
+        let existed = session_store::load(&state.db, &session_key).await;
+        let is_new = existed.is_none();
+        let mut session = existed.unwrap_or_default();
         session.normalize();
+
+        // .NET KgSessionManager 构造函数第 39 行：归一化后始终调用 Save()。
+        // 这确保设备指纹（install_guid/mid 等）在首次创建后立刻持久化，
+        // 后续请求能稳定读到同一份指纹，而不是每次都随机生成新的。
+        if is_new {
+            session_store::save(&state.db, &session_key, &session).await;
+        }
 
         // 确保 extensions 里有 SessionKey（供中间件回写）
         parts.extensions.insert(SessionKey(session_key));
