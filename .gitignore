@@ -1,0 +1,15 @@
+/target
+
+# 环境变量与本地数据库（绝不入库）
+.env
+.env.*
+!.env.example
+
+# SQLite 数据文件
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# swagger-ui 离线缓存（构建脚本下载的静态资源，不入库）
+.swagger-cache/

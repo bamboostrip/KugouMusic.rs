@@ -1,0 +1,101 @@
+[package]
+name = "kugou_web_api"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "kugou_web_api"
+path = "src/main.rs"
+
+[dependencies]
+# ===== Web 核心与异步运行时 =====
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["cors", "trace", "catch-panic", "timeout"] }
+
+# ===== 序列化与数据校验 =====
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+validator = { version = "0.20", features = ["derive"] } # 请求参数强校验
+
+# ===== 数据库（SQLite —— 对应 .NET 项目里只存 会话凭证 / App版本 两张小表）=====
+# 选 SQLite：文件型、零额外进程、Docker 镜像最小、内存占用最低，最贴合"服务器资源吃紧"。
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "sqlite",
+    "chrono",
+    "macros",
+    "migrate", # 启用 sqlx::migrate! 宏，启动时自动跑 migrations/
+] }
+
+# ===== 日志 =====
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] } # 结构化日志
+
+# ===== Swagger / OpenAPI =====
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+utoipa-axum = "0.2" # 让 Axum 路由和 Swagger 绑定得更优雅
+
+# ===== HTTP 客户端（代理上游酷狗 API 必须）=====
+# reqwest 0.13 重构了 TLS：不再有 `rustls-tls`。
+# 这里用 `rustls-no-provider`（不绑定具体 crypto 后端），再由下方的
+# rustls / tokio-rustls / hyper-rustls 显式启用 `ring` 后端。
+# 选 ring 而非 aws-lc-rs：ring 自带 MSVC 预编译件，编译无需 C 工具链，跨平台最省心。
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+    "charset",
+    "http2",
+    "system-proxy",
+    "json",
+    "stream",
+    "gzip",
+    # 不启用 "cookies"：reqwest 0.13 → cookie_store → cookie 0.18 与当前 time 不兼容，
+    # 且酷狗登录态是按 session key 存在 kg_sessions 表里、由我们手工注入到上游请求，
+    # 本就不依赖 reqwest 的 cookie jar。
+    "form", # external_playlist 网易云 form-urlencoded 提交
+] }
+
+# 显式选定 rustls 的 ring 后端（reqwest/rustls-no-provider 不带 provider，必须补上）。
+# 这样 sqlx(tls-rustls) 与 reqwest 共用同一套 rustls+ring，TLS 实现唯一、体积最小。
+rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["ring", "http1", "http2", "native-tokio"] }
+
+# ===== 工程化 =====
+dotenvy = "0.15"             # 读取 .env
+thiserror = "2"              # error.rs 自定义错误的 ergonomic derive
+chrono = { version = "0.4", features = ["serde"] } # 时间字段序列化
+uuid = { version = "1", features = ["v4", "serde"] } # 会话 id 等
+anyhow = "1"                 # 启动期/胶水代码错误聚合（不跨 .await 边界）
+
+# ===== 酷狗协议核心（签名/加密，对应 .NET 的 util/KGSigner.cs + KGCrypto.cs）=====
+# md-5 关闭 default（含 oid 特性 → 会拉入未缓存的 const-oid）；只需 alloc + core digest。
+md-5 = { version = "0.11", default-features = false, features = ["alloc"] }
+digest = { version = "0.11", default-features = false, features = ["alloc"] }
+hex = "0.4"                  # md5 输出小写 hex
+flate2 = "1"                 # zlib 解压，KRC 歌词解码
+base64 = "0.22"              # base64 编解码（KRC/响应回退）
+rand = "0.10"                # 随机字符串（dfid/mid/tempKey 生成）
+regex = "1"                  # 会话 key 校验（X-Kg-Session-Id 正则）
+url = "2"                    # 外部歌单解析（网易云/QQ 链接解析）
+
+# ===== Phase 4：登录/设备注册的加密（对应 .NET KGCrypto 的 AES + RSA）=====
+aes = "0.9"                  # AES 逐块原语（CBC 在 crypto.rs 手写，不依赖 cbc crate）
+cipher = { version = "0.5", features = ["block-padding"] }
+rsa = { version = "0.9", features = ["sha2"] }  # 解析 PEM 取 n/e + PKCS1v15Encrypt
+num-bigint = "0.4"           # 登录 pk 的裸 RSA 模幂（c = m^e mod n）
+
+[profile.release]
+opt-level = 3
+lto = "thin"          # 链接期优化，进一步缩小二进制
+codegen-units = 1
+strip = true          # 去符号表，镜像更小
+panic = "abort"       # 不带 unwind，体积更小（配合 catch-panic 中间件兜底）
+
+# 构建期依赖固定：cc 1.2.65 的默认 feature 会拉入 find-msvc-tools(在 rustc 1.96 上自身编译失败)。
+# 关闭 cc 默认 feature，规避该问题。
+[build-dependencies]
+cc = { version = "1.2", default-features = false }
