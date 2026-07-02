@@ -31,17 +31,16 @@ const LOGIN_ROUTER: &str = "login.user.kugou.com";
 const LOGIN_RETRY_HOST: &str = "https://loginserviceretry.kugou.com";
 const WEB_HOST: &str = "https://login-user.kugou.com";
 
-/// 解密登录响应：若 data.secu_params 存在，用 aesKey 解密后合并进 data。
-/// 对应 RawLoginApi.TryDecryptResponse。aesKey 为 None 时原样返回。
+/// 解密登录响应：若 secu_params 存在，用 aesKey 解密后合并进根节点。
+///
+/// 对应 RawLoginApi.TryDecryptResponse。
+/// **注意**：transport::send 已把 `data` 提升为根节点，所以这里直接在根节点
+/// 查 `secu_params`，解密后也直接合并进根节点（不再有 data 子对象）。
 fn try_decrypt_response(response: Value, aes_key: Option<&str>) -> Value {
-    let status_ok = response.get("status").and_then(|v| v.as_i64()) == Some(1);
-    if !status_ok {
-        return response;
-    }
     let Some(aes_key) = aes_key else { return response };
-    let secu = match response.pointer("/data/secu_params").and_then(|v| v.as_str()) {
-        Some(s) => s,
-        None => return response,
+    let secu = match response.get("secu_params").and_then(|v| v.as_str()) {
+        Some(s) if !s.is_empty() => s,
+        _ => return response,
     };
     let plain = crypto::aes_decrypt(secu, aes_key);
     let decrypted_json = match serde_json::from_str::<Value>(&plain) {
@@ -52,16 +51,16 @@ fn try_decrypt_response(response: Value, aes_key: Option<&str>) -> Value {
         }
     };
 
+    // 把解密字段直接合并进根节点（transport 已提升 data → root）
     let mut root = response;
-    if let (Some(data), Some(dec_obj)) = (root.get_mut("data"), decrypted_json.as_object())
-        && let Some(data_obj) = data.as_object_mut()
-    {
+    if let (Some(root_obj), Some(dec_obj)) = (root.as_object_mut(), decrypted_json.as_object()) {
         for (k, v) in dec_obj {
-            data_obj.insert(k.clone(), v.clone());
+            root_obj.insert(k.clone(), v.clone());
         }
     }
     root
 }
+
 
 /// 发送短信验证码。对应 RawLoginApi.SendSmsCodeAsync（无加密，Default 签名）。
 pub async fn send_sms_code(state: &AppState, session: &KgSession, mobile: &str) -> AppResult<Value> {
@@ -182,7 +181,7 @@ pub async fn check_qr_status(
     session: &KgSession,
     key: &str,
 ) -> AppResult<Value> {
-    let req = KgRequest::get("/v2/get_user_info_qrcode")
+    let req = KgRequest::get("/v2/get_userinfo_qrcode")
         .base_url(WEB_HOST)
         .param("plat", "4")
         .param("appid", "3116")
