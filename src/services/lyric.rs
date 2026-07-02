@@ -84,9 +84,13 @@ pub async fn get_lyric(
 
     Ok(json!({
         "raw_content": raw_content,
+        "rawContent": raw_content,
         "decoded_content": decoded_content,
+        "decodedContent": decoded_content,
         "decoded_translation": decoded_trans,
+        "decodedTranslation": decoded_trans,
         "raw": raw,
+        "rawJson": raw,
     }))
 }
 
