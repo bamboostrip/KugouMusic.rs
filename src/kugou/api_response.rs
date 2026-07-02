@@ -33,11 +33,27 @@ pub fn parse(root: Value) -> ParsedResponse {
         root_status == Some(1) && matches!(root_err_code, None | Some(0));
 
     if is_success {
-        // 成功：提升 data
+        // 成功：提升 data 并回填 status/error_code 到 data 对象中
+        // 对齐 .NET: KgApiResponseParser.Parse 成功时会将 rootStatus/rootErrCode 回填至基类属性
         if let Some(data) = root.get("data")
             && !data.is_null()
         {
-            return ParsedResponse::Success(data.clone());
+            let mut promoted = data.clone();
+            if let Some(obj) = promoted.as_object_mut() {
+                if !obj.contains_key("status") {
+                    if let Some(status) = root_status {
+                        obj.insert("status".to_string(), serde_json::json!(status));
+                    }
+                }
+                if !obj.contains_key("error_code") && !obj.contains_key("errcode") {
+                    if let Some(err_code) = root_err_code {
+                        obj.insert("error_code".to_string(), serde_json::json!(err_code));
+                    } else {
+                        obj.insert("error_code".to_string(), serde_json::json!(0));
+                    }
+                }
+            }
+            return ParsedResponse::Success(promoted);
         }
         ParsedResponse::Success(root)
     } else {
@@ -68,7 +84,7 @@ mod tests {
     fn success_promotes_data() {
         let root = json!({ "status": 1, "error_code": 0, "data": { "lists": [1, 2, 3] } });
         match parse(root) {
-            ParsedResponse::Success(v) => assert_eq!(v, json!({ "lists": [1, 2, 3] })),
+            ParsedResponse::Success(v) => assert_eq!(v, json!({ "lists": [1, 2, 3], "status": 1, "error_code": 0 })),
             _ => panic!("应成功"),
         }
     }
