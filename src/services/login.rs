@@ -190,9 +190,12 @@ pub async fn check_qr_status(
         .signature_type(SignatureType::Web);
     let resp = transport::send(&state.http, session, &req).await?;
 
-    // .NET: status_with_sdk==1（或 data.status==1）表示扫码登录成功
+    // .NET: status == 4 (QrLoginStatus.Success) 表示扫码确认登录成功
     // QR 状态码：1=已扫码，2=过期，0=等待，4/5=已确认
-    let sdk_ok = resp.get("status_with_sdk").and_then(|v| v.as_i64()) == Some(1);
+    let status = resp.get("status").and_then(|v| v.as_i64());
+    let status_with_sdk = resp.get("status_with_sdk").and_then(|v| v.as_i64());
+    let sdk_ok = status == Some(4) || status == Some(5) || status_with_sdk == Some(1);
+
     if sdk_ok
         && let (Some(uid), Some(token)) = (
             resp.get("userid").and_then(|v| v.as_i64()),
