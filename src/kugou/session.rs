@@ -104,13 +104,14 @@ impl KgSession {
         self.t1 = t1.into();
     }
 
-    /// 登出：清空凭证但保留设备指纹。对应 KgSessionManager.Logout。
+    /// 登出：清空凭证 + 重置 dfid。对应 KgSessionManager.Logout（保留 install 设备指纹）。
     pub fn logout(&mut self) {
         self.userid = "0".into();
         self.token.clear();
         self.vip_type = "0".into();
         self.vip_token.clear();
         self.t1.clear();
+        self.dfid = "-".into();   // .NET KgSessionManager.Logout() 也重置 dfid
     }
 }
 
