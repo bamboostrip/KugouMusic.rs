@@ -19,10 +19,32 @@ pub enum ParsedResponse {
     Failure { status: Option<i64>, err_code: Option<i64>, root: Value },
 }
 
+fn replace_size_placeholders(val: &mut Value) {
+    match val {
+        Value::String(s) => {
+            if s.contains("{size}") {
+                *s = s.replace("{size}", "400");
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                replace_size_placeholders(v);
+            }
+        }
+        Value::Object(obj) => {
+            for (_, v) in obj {
+                replace_size_placeholders(v);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// 解析酷狗响应（对应 KgApiResponseParser.Parse，但只做透传语义）。
 ///
 /// 业务层若需要强类型，可拿到 `Success(Value)` 后自行 `serde_json::from_value`。
-pub fn parse(root: Value) -> ParsedResponse {
+pub fn parse(mut root: Value) -> ParsedResponse {
+    replace_size_placeholders(&mut root);
     let root_status = root.get("status").and_then(|v| v.as_i64());
     let root_err_code = root
         .get("error_code")
@@ -121,5 +143,30 @@ mod tests {
     fn status_one_err_absent_is_success() {
         let root = json!({ "status": 1, "data": "x" });
         assert!(matches!(parse(root), ParsedResponse::Success(_)));
+    }
+
+    #[test]
+    fn test_replace_size_placeholders() {
+        let root = json!({
+            "status": 1,
+            "error_code": 0,
+            "data": {
+                "pic": "http://img.kugou.com/cover/{size}/a.jpg",
+                "nested": {
+                    "avatar": "http://img.kugou.com/avatar/{size}/b.jpg"
+                },
+                "array": [
+                    "http://img.kugou.com/array/{size}/c.jpg"
+                ]
+            }
+        });
+        match parse(root) {
+            ParsedResponse::Success(v) => {
+                assert_eq!(v["pic"], "http://img.kugou.com/cover/400/a.jpg");
+                assert_eq!(v["nested"]["avatar"], "http://img.kugou.com/avatar/400/b.jpg");
+                assert_eq!(v["array"][0], "http://img.kugou.com/array/400/c.jpg");
+            }
+            _ => panic!("应成功"),
+        }
     }
 }
