@@ -1,0 +1,29 @@
+# ===== 构建产物 / 缓存 =====
+target/
+.swagger-cache/
+
+# ===== 版本控制 =====
+.git/
+.gitignore
+
+# ===== 本地数据（绝不进镜像）=====
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.swp
+
+# ===== Docker 自身 =====
+Dockerfile
+.dockerignore
+docker-compose*.yaml
+
+# ===== 文档 =====
+*.md

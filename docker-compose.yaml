@@ -1,0 +1,44 @@
+# 酷狗 Web API —— Docker Compose 部署
+#
+# 启动：  docker compose up -d --build
+# 日志：  docker compose logs -f
+# 停止：  docker compose down
+# Swagger：http://localhost:3000/swagger-ui/
+
+services:
+  kugou-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kugou-web-api:latest
+    container_name: kugou-api
+    restart: unless-stopped
+ 
+    ports:
+      - "3000:3000"
+ 
+    volumes:
+      # SQLite 持久化：宿主 ./data ↔ 容器 /app/data
+      - ./data:/app/data
+ 
+    environment:
+      APP_ENV: production
+      # 日志级别（按需调整：debug/info/warn）
+      RUST_LOG: kugou_web_api=info,tower_http=warn,sqlx=warn
+      # 其他变量走 Dockerfile 默认值；如需覆盖在此处加：
+      # APP_PORT: 3000
+      # KUGOU_GATEWAY_URL: https://gateway.kugou.com
+      # HTTP_TIMEOUT_SECS: "10"
+ 
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+ 
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

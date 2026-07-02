@@ -30,11 +30,14 @@ async fn main() -> anyhow::Result<()> {
     // 1. 加载 .env（不存在不报错，CI/容器里通常直接用环境变量）
     let _ = dotenvy::dotenv();
 
-    // 2. 读配置（失败即退出，启动期错误不可吞）
-    let cfg = Config::from_env()?;
+    // 2. 先用默认日志级别初始化 Tracing，确保后续所有启动错误都能被记录
+    //    （config 加载失败、DB 连接失败等都需要日志输出才能诊断）
+    let pre_cfg_log = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "kugou_web_api=debug,tower_http=info".into());
+    init_tracing(&pre_cfg_log);
 
-    // 3. 初始化 Tracing 结构化日志
-    init_tracing(&cfg.rust_log);
+    // 3. 读配置（失败即退出，启动期错误不可吞）
+    let cfg = Config::from_env()?;
 
     tracing::info!(env = %cfg.env, "启动 KuGou Web API");
 
@@ -87,9 +90,22 @@ fn init_tracing(directive: &str) {
 }
 
 async fn init_db(cfg: &Config) -> anyhow::Result<SqlitePool> {
-    // data/ 目录可能不存在（git 忽略了它），先建出来，避免 sqlite 连接串创建文件失败
-    std::fs::create_dir_all("data").ok();
+    // 从 DATABASE_URL 中提取数据库文件的父目录并确保它存在。
+    // 支持 sqlite://./data/app.db 和 sqlite:///app/data/app.db 两种写法。
+    let db_path = cfg.database_url
+        .trim_start_matches("sqlite://")
+        .split('?')
+        .next()
+        .unwrap_or("data/app.db");
+    if let Some(parent) = std::path::Path::new(db_path).parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            tracing::warn!(path = %parent.display(), error = %e, "创建数据库目录失败（可能已存在）");
+        } else {
+            tracing::debug!(path = %parent.display(), "数据库目录已就绪");
+        }
+    }
 
+    tracing::info!(url = %cfg.database_url, "正在连接 SQLite 数据库");
     let pool = SqlitePoolOptions::new()
         .max_connections(5) // SQLite 写并发有限，小项目 5 足够
         .connect(&cfg.database_url)
