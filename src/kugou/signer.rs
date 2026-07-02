@@ -97,10 +97,12 @@ pub fn calc_web_qr_signature(params: &BTreeMap<String, String>) -> String {
 
 /// KgSigner.CalcLoginKey —— 登录/部分 raw api 内联用。
 ///
-/// `md5(AppId + LiteSalt + ClientVer + clienttime_ms)`。
-/// 注意这里是**毫秒**时间戳（clienttime 查询参数用秒，登录用毫秒）。
-pub fn calc_login_key(clienttime_ms: i64) -> String {
-    let raw = format!("{}{}{}{}", config::APP_ID, config::LITE_SALT, config::CLIENT_VER, clienttime_ms);
+/// `md5(AppId + LiteSalt + ClientVer + clienttime)`。
+/// 调用方负责传入正确单位：
+/// - `login_by_mobile` 传**毫秒**（与 clienttime_ms 字段一致）
+/// - `user_cloud` 传**秒**（与 .NET RawUserApi.GetCloudAsync 一致）
+pub fn calc_login_key(clienttime: i64) -> String {
+    let raw = format!("{}{}{}{}", config::APP_ID, config::LITE_SALT, config::CLIENT_VER, clienttime);
     crypto::md5_str(&raw)
 }
 
@@ -226,7 +228,7 @@ mod tests {
         assert!(mid.chars().all(|c| c.is_ascii_digit()));
     }
 
-    /// login key：用毫秒时间戳。
+    /// login key：参数名与单位由调用方决定（此处用 ms 与登录场景对齐）。
     #[test]
     fn login_key_uses_ms_timestamp() {
         let ms: i64 = 1_700_000_000_000;
