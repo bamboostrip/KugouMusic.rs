@@ -139,12 +139,30 @@ async fn playlist_tags(State(state): State<AppState>, KgReqSession(s): KgReqSess
     Ok(Json(services::playlist::playlist_tags(&state, &s).await?))
 }
 
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct PlaylistTrackQuery {
+    #[validate(length(min = 1, message = "id 不能为空"))]
+    pub id: String,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_pagesize")]
+    pub pagesize: i64,
+}
+
 /// `GET /playlist/track/all` —— 歌单全部歌曲。
-#[utoipa::path(get, path = "/playlist/track/all", tag = "playlist", responses((status = 200, body = Object)))]
-async fn playlist_track_all(State(state): State<AppState>, KgReqSession(s): KgReqSession, Query(q): Query<PlaylistIdQuery>) -> AppResult<Json<Value>> {
+#[utoipa::path(
+    get, path = "/playlist/track/all", tag = "playlist",
+    params(("id" = String, Query), ("page" = Option<i64>, Query), ("pagesize" = Option<i64>, Query)),
+    responses((status = 200, body = Object))
+)]
+async fn playlist_track_all(
+    State(state): State<AppState>,
+    KgReqSession(s): KgReqSession,
+    Query(q): Query<PlaylistTrackQuery>,
+) -> AppResult<Json<Value>> {
     q.validate()?;
-    // begin_idx = (page-1)*pagesize；这里 .NET controller 用 page/pagesize，begin_idx 默认 0
-    Ok(Json(services::playlist::playlist_tracks(&state, &s, &q.ids, 0, 30).await?))
+    let begin_idx = (q.page - 1) * q.pagesize;
+    Ok(Json(services::playlist::playlist_tracks(&state, &s, &q.id, begin_idx, q.pagesize).await?))
 }
 
 /// `GET /playlist/track/all/new` —— 歌单全部歌曲（新版接口）。
