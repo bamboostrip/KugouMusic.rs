@@ -240,6 +240,9 @@ pub async fn sheet_list(state: &AppState, session: &KgSession, album_audio_id: &
 }
 
 /// playlist/detail —— 歌单详情（软依赖 userid/token，Default 签名）。
+///
+/// **注意**：对齐 .NET `playlistClient.GetInfoAsync` 的 `list?.FirstOrDefault()`，
+/// 这里如果上游返回列表，只返回第一个元素（即歌单详情对象本身），而不是整个列表数组。
 pub async fn playlist_info(state: &AppState, session: &KgSession, playlist_id: &str) -> AppResult<Value> {
     let body = json!({
         "data": [{ "global_collection_id": playlist_id }],
@@ -250,7 +253,14 @@ pub async fn playlist_info(state: &AppState, session: &KgSession, playlist_id: &
         .router("pubsongs.kugou.com")
         .json_body(body)
         .signature_type(SignatureType::Default);
-    transport::send(&state.http, session, &req).await
+    let mut resp = transport::send(&state.http, session, &req).await?;
+
+    if let Some(arr) = resp.as_array_mut() {
+        if !arr.is_empty() {
+            return Ok(arr.remove(0));
+        }
+    }
+    Ok(resp)
 }
 
 /// playlist/tags —— 歌单分类标签（Default 签名）。
