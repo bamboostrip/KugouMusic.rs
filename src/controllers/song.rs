@@ -37,6 +37,10 @@ fn default_quality() -> String { "128".into() }
 /// `GET /song/url` —— 获取播放地址（V5 签名）。
 ///
 /// 返回透传的上游 JSON（已做 data 提升）。前端可直接用其中的 `url` 字段播放。
+///
+/// 说明：VIP 态由 transport 层注入的 `Cookie: vip_type/vip_token` 携带到上游
+/// （对齐 .NET `WebApiCookieContainerHandler` + `KgSessionManager.SyncCookies`），
+/// 因此这里不再需要额外的"播放守卫"。
 #[utoipa::path(
     get,
     path = "/song/url",

@@ -13,3 +13,6 @@
 
 # swagger-ui 离线缓存（构建脚本下载的静态资源，不入库）
 .swagger-cache/
+
+# ZCode 本地会话/计划文件（不入库）
+.zcode/

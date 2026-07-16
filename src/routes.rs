@@ -8,7 +8,7 @@
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::controllers::{album, app_version, artist, comment, discover, external_playlist, fm, health, login, lyric, media_catalog, playlist, playlist_read, rank, register, report, search, song, user};
+use crate::controllers::{album, app_version, artist, comment, discover, external_playlist, fm, health, login, lyric, media_catalog, playlist, playlist_read, rank, register, report, search, song, user, youth};
 use crate::state::AppState;
 
 /// 顶层 OpenAPI 描述：全局信息 + 安全方案(Bearer) 都挂在这里。
@@ -35,6 +35,7 @@ use crate::state::AppState;
         (name = "login", description = "登录/验证码"),
         (name = "register", description = "设备注册"),
         (name = "user", description = "用户"),
+        (name = "youth", description = "概念版（频道/动态/每日VIP）"),
         (name = "playlist", description = "歌单"),
         (name = "discover", description = "发现/推荐"),
         (name = "report", description = "上报"),
@@ -77,6 +78,7 @@ pub fn app_router(state: AppState) -> (axum::Router, utoipa::openapi::OpenApi) {
         .merge(login::router())
         .merge(register::router())
         .merge(user::router())
+        .merge(youth::router())
         .merge(playlist::router())
         .merge(playlist_read::router())
         .merge(discover::router())

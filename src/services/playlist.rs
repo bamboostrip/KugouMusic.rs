@@ -255,10 +255,10 @@ pub async fn playlist_info(state: &AppState, session: &KgSession, playlist_id: &
         .signature_type(SignatureType::Default);
     let mut resp = transport::send(&state.http, session, &req).await?;
 
-    if let Some(arr) = resp.as_array_mut() {
-        if !arr.is_empty() {
-            return Ok(arr.remove(0));
-        }
+    if let Some(arr) = resp.as_array_mut()
+        && !arr.is_empty()
+    {
+        return Ok(arr.remove(0));
     }
     Ok(resp)
 }

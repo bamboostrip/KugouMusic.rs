@@ -23,3 +23,4 @@ pub mod report;
 pub mod search;
 pub mod song;
 pub mod user;
+pub mod youth;

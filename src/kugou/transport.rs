@@ -205,6 +205,25 @@ pub async fn send(client: &Client, session: &KgSession, req: &KgRequest) -> AppR
         .header("kg-rec", config::KG_REC)
         .header("kg-rf", config::KG_RF);
 
+    // Cookie 头：对齐 .NET 的 `KgSessionManager.SyncCookies` + `WebApiCookieContainerHandler`。
+    // .NET 在每次会话凭证变更（登录/刷新）时，把 userid/token/vip_type/vip_token 写进
+    // 一个 CookieContainer（域：kugou.com / login-user.kugou.com / gateway.kugou.com），
+    // 再由 WebApiCookieContainerHandler 在**每个**上游请求上回放成 `Cookie` 头。
+    //
+    // 这对 `/v5/url`（播放地址）至关重要：上游靠这个 cookie 判定会员态，缺失会被当作
+    // 非会员返回 `status:2`（即播放失败的根因）。Rust 这边 reqwest 未启用 cookie store，
+    // 所以直接按 session 字段拼一个等价的 Cookie 头。
+    //
+    // 与 .NET 一致：即使值为空也拼接（.NET SetCookie 传空串仍 Add），保持完全对齐。
+    let cookie = format!(
+        "userid={uid}; token={tok}; vip_type={vt}; vip_token={vtt}",
+        uid = session.userid,
+        tok = session.token,
+        vt = session.vip_type,
+        vtt = session.vip_token,
+    );
+    builder = builder.header("Cookie", cookie);
+
     // 自定义 header
     if let Some(custom) = &req.custom_headers {
         for (k, v) in custom {
