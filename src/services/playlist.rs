@@ -32,9 +32,10 @@ pub async fn collect_playlist(
 ) -> AppResult<Value> {
     require_login(session)?;
     let client_time = chrono::Utc::now().timestamp();
+    // type: 0=创建, 1=收藏; source: 1=歌单, 2=专辑（对齐 .NET CollectPlaylistAsync）
     let body = json!({
         "userid": session.userid, "token": session.token, "total_ver": 0,
-        "name": name, "type": 0, "source": 1, "is_pri": 0,
+        "name": name, "type": 1, "source": 1, "is_pri": 0,
         "list_create_userid": session.userid, "list_create_listid": "1",
         "list_create_gid": list_create_gid, "from_shupinmv": 0
     });
