@@ -171,8 +171,9 @@ pub async fn remove_tracks(
         "listid": listid, "userid": session.userid, "data": data,
         "type": 0, "token": session.token, "list_ver": 0
     });
-    let req = KgRequest::get("/cloudlist.service/v6/del_song")
+    let req = KgRequest::get("/v4/delete_songs")
         .method(reqwest::Method::POST)
+        .router("cloudlist.service.kugou.com")
         .json_body(body)
         .signature_type(SignatureType::Default);
     transport::send(&state.http, session, &req).await
