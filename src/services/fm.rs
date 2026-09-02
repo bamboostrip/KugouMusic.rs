@@ -1,8 +1,8 @@
-//! 电台业务层 —— 对应 .NET 的 `FmClient` + `RawFmApi`。4 端点，Default 签名。
+//! 电台业务层 —— 对应 .NET 的 `FmClient` + `RawFmApi`。4 端点，OfficialAndroid 签名。
 //!
 //! 注意 FM 端点用 .NET 的 `SignedBody` 模式：把 appid/clienttime(毫秒)/clientver/
-//! key(login_key)/mid 注入到 **JSON body** 内（而非走 transport 默认参数）。
-//! 这里用 [`fm_signed_body`] 复刻。
+//! key(official_key)/mid 注入到 **JSON body** 内（而非走 transport 默认参数）。
+//! 这里用 [`fm_signed_body`] 复刻。fm.service 仅对标准客户端身份（1005/Official）返回数据。
 
 use serde_json::{json, Value};
 
@@ -12,12 +12,15 @@ use crate::state::AppState;
 
 /// 复刻 .NET RawFmApi.SignedBody：往 body 注入 appid/clienttime/clientver/key/mid。
 /// 返回新 body（保留原字段，注入/覆盖这 5 个）。
+///
+/// fm.service.kugou.com 系列接口统一用**标准客户端身份**（appid=1005 + OfficialSalt）
+/// 签名：歌曲列表等接口只对标准身份返回数据，Lite 身份会得到 status=1 但空 data。
 fn fm_signed_body(session: &KgSession, now_ms: i64, mut body: Value) -> Value {
     if let Value::Object(ref mut map) = body {
-        map.insert("appid".into(), json!(config::APP_ID));
+        map.insert("appid".into(), json!(config::OFFICIAL_APP_ID));
         map.insert("clienttime".into(), json!(now_ms));
-        map.insert("clientver".into(), json!(config::CLIENT_VER));
-        map.insert("key".into(), json!(signer::calc_login_key(now_ms)));
+        map.insert("clientver".into(), json!(config::OFFICIAL_CLIENT_VER));
+        map.insert("key".into(), json!(signer::calc_official_key(now_ms)));
         map.insert("mid".into(), json!(crypto::calc_new_mid(&session.dfid)));
     }
     body
@@ -37,7 +40,7 @@ pub async fn fm_recommend(state: &AppState, session: &KgSession) -> AppResult<Va
         .method(reqwest::Method::POST)
         .router("fm.service.kugou.com")
         .json_body(body)
-        .signature_type(SignatureType::Default);
+        .signature_type(SignatureType::OfficialAndroid);
     transport::send(&state.http, session, &req).await
 }
 
@@ -75,7 +78,7 @@ pub async fn fm_songs(
         .method(reqwest::Method::POST)
         .router("fm.service.kugou.com")
         .json_body(body)
-        .signature_type(SignatureType::Default);
+        .signature_type(SignatureType::OfficialAndroid);
     transport::send(&state.http, session, &req).await
 }
 
@@ -93,7 +96,7 @@ pub async fn fm_class(state: &AppState, session: &KgSession) -> AppResult<Value>
         .method(reqwest::Method::POST)
         .router("fm.service.kugou.com")
         .json_body(body)
-        .signature_type(SignatureType::Default);
+        .signature_type(SignatureType::OfficialAndroid);
     transport::send(&state.http, session, &req).await
 }
 
@@ -120,6 +123,6 @@ pub async fn fm_image(state: &AppState, session: &KgSession, fm_ids: &str) -> Ap
         .method(reqwest::Method::POST)
         .router("fm.service.kugou.com")
         .json_body(body)
-        .signature_type(SignatureType::Default);
+        .signature_type(SignatureType::OfficialAndroid);
     transport::send(&state.http, session, &req).await
 }
