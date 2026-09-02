@@ -9,8 +9,8 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use validator::Validate;
 
 use crate::error::AppResult;
-use crate::middleware::KgReqSession;
-use crate::services;
+use crate::middleware::{KgReqSession, KgSessionKey};
+use crate::services::{self, helpers};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -53,9 +53,14 @@ fn default_pagesize() -> i64 { 30 }
 async fn album_shop(
     State(state): State<AppState>,
     KgReqSession(session): KgReqSession,
+    KgSessionKey(k): KgSessionKey,
     Query(_q): Query<AlbumShopQuery>,
 ) -> AppResult<Json<Value>> {
-    Ok(Json(services::album::album_shop(&state, &session).await?))
+    let v = helpers::with_auto_retry(&state, &k, &session, "/album/shop", |sess| {
+        let state = state.clone();
+        async move { services::album::album_shop(&state, &sess).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `GET /album` —— 专辑信息。
@@ -63,10 +68,19 @@ async fn album_shop(
 async fn album_info(
     State(state): State<AppState>,
     KgReqSession(session): KgReqSession,
+    KgSessionKey(k): KgSessionKey,
     Query(q): Query<AlbumQuery>,
 ) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(services::album::album_info(&state, &session, &q.album_ids, q.fields.as_deref()).await?))
+    let ids = q.album_ids.clone();
+    let fields = q.fields.clone();
+    let v = helpers::with_auto_retry(&state, &k, &session, "/album", |sess| {
+        let state = state.clone();
+        let ids = ids.clone();
+        let fields = fields.clone();
+        async move { services::album::album_info(&state, &sess, &ids, fields.as_deref()).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `GET /album/detail` —— 专辑详情。
@@ -74,10 +88,17 @@ async fn album_info(
 async fn album_detail(
     State(state): State<AppState>,
     KgReqSession(session): KgReqSession,
+    KgSessionKey(k): KgSessionKey,
     Query(q): Query<AlbumDetailQuery>,
 ) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(services::album::album_detail(&state, &session, &q.id).await?))
+    let id = q.id.clone();
+    let v = helpers::with_auto_retry(&state, &k, &session, "/album/detail", |sess| {
+        let state = state.clone();
+        let id = id.clone();
+        async move { services::album::album_detail(&state, &sess, &id).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `GET /album/songs` —— 专辑歌曲。
@@ -85,10 +106,19 @@ async fn album_detail(
 async fn album_songs(
     State(state): State<AppState>,
     KgReqSession(session): KgReqSession,
+    KgSessionKey(k): KgSessionKey,
     Query(q): Query<AlbumSongsQuery>,
 ) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(services::album::album_songs(&state, &session, &q.id, q.page, q.pagesize).await?))
+    let id = q.id.clone();
+    let page = q.page;
+    let pagesize = q.pagesize;
+    let v = helpers::with_auto_retry(&state, &k, &session, "/album/songs", |sess| {
+        let state = state.clone();
+        let id = id.clone();
+        async move { services::album::album_songs(&state, &sess, &id, page, pagesize).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -98,3 +128,5 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(album_detail))
         .routes(routes!(album_songs))
 }
+
+

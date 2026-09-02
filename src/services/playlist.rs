@@ -198,7 +198,7 @@ where
 ///
 /// 兼容 Dart `MusicApi._songAddPayload` 的 camelCase（albumId/mixSongId）以及
 /// Rust 侧 snake_case（album_id/mix_song_id / mixsongid），同时允许数字/字符串混用。
-#[derive(Debug, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct AddSongItem {
     pub name: String,
     pub hash: String,

@@ -12,8 +12,8 @@ use validator::Validate;
 
 use crate::error::AppResult;
 use crate::kugou::models::PlayUrlData;
-use crate::middleware::KgReqSession;
-use crate::services;
+use crate::middleware::{KgReqSession, KgSessionKey};
+use crate::services::{self, helpers};
 use crate::state::AppState;
 
 /// /song/url 入参。对应 .NET SongController.GetUrl。
@@ -59,23 +59,39 @@ fn default_quality() -> String { "128".into() }
 async fn get_song_url(
     State(state): State<AppState>,
     KgReqSession(session): KgReqSession,
+    KgSessionKey(session_key): KgSessionKey,
     Query(q): Query<SongUrlQuery>,
 ) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(
-        services::song::get_play_url(
-            &state,
-            &session,
-            &q.hash,
-            Some(&q.quality),
-            q.album_id.as_deref(),
-            q.album_audio_id.as_deref(),
-            q.free_part.unwrap_or(false),
-        )
-        .await?,
-    ))
+    let hash = q.hash.clone();
+    let quality = q.quality.clone();
+    let album_id = q.album_id.clone();
+    let album_audio_id = q.album_audio_id.clone();
+    let free_part = q.free_part.unwrap_or(false);
+    let v = helpers::with_auto_retry(&state, &session_key, &session, "/song/url", |sess| {
+        let state = state.clone();
+        let hash = hash.clone();
+        let quality = quality.clone();
+        let album_id = album_id.clone();
+        let album_audio_id = album_audio_id.clone();
+        async move {
+            services::song::get_play_url(
+                &state,
+                &sess,
+                &hash,
+                Some(&quality),
+                album_id.as_deref(),
+                album_audio_id.as_deref(),
+                free_part,
+            )
+            .await
+        }
+    })
+    .await?;
+    Ok(Json(v))
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new().routes(routes!(get_song_url))
 }
+

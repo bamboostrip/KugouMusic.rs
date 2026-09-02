@@ -10,6 +10,7 @@ pub mod comment;
 pub mod discover;
 pub mod external_playlist;
 pub mod fm;
+pub mod helpers;
 pub mod login;
 pub mod lyric;
 pub mod media_catalog;

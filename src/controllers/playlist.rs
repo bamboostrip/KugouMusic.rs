@@ -9,8 +9,8 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use validator::Validate;
 
 use crate::error::AppResult;
-use crate::middleware::KgReqSession;
-use crate::services::{self, playlist::AddSongItem};
+use crate::middleware::{KgReqSession, KgSessionKey};
+use crate::services::{self, helpers, playlist::AddSongItem};
 use crate::state::AppState;
 
 fn flex_string_query<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -81,38 +81,75 @@ pub struct RemoveTracksQuery {
 
 /// `POST /playlist/add` —— 收藏歌单。
 #[utoipa::path(post, path = "/playlist/add", tag = "playlist", responses((status = 200, body = Object)))]
-async fn playlist_add(State(state): State<AppState>, KgReqSession(s): KgReqSession, Query(q): Query<PlaylistAddQuery>) -> AppResult<Json<Value>> {
+async fn playlist_add(State(state): State<AppState>, KgReqSession(s): KgReqSession, KgSessionKey(k): KgSessionKey, Query(q): Query<PlaylistAddQuery>) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(services::playlist::collect_playlist(&state, &s, &q.name, &q.list_create_gid).await?))
+    let name = q.name.clone();
+    let gid = q.list_create_gid.clone();
+    let v = helpers::with_auto_retry(&state, &k, &s, "/playlist/add", |sess| {
+        let state = state.clone();
+        let name = name.clone();
+        let gid = gid.clone();
+        async move { services::playlist::collect_playlist(&state, &sess, &name, &gid).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `POST /playlist/create` —— 新建歌单。
 #[utoipa::path(post, path = "/playlist/create", tag = "playlist", responses((status = 200, body = Object)))]
-async fn playlist_create(State(state): State<AppState>, KgReqSession(s): KgReqSession, Query(q): Query<PlaylistCreateQuery>) -> AppResult<Json<Value>> {
+async fn playlist_create(State(state): State<AppState>, KgReqSession(s): KgReqSession, KgSessionKey(k): KgSessionKey, Query(q): Query<PlaylistCreateQuery>) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(services::playlist::create_playlist(&state, &s, &q.name, q.r#type).await?))
+    let name = q.name.clone();
+    let t = q.r#type;
+    let v = helpers::with_auto_retry(&state, &k, &s, "/playlist/create", |sess| {
+        let state = state.clone();
+        let name = name.clone();
+        async move { services::playlist::create_playlist(&state, &sess, &name, t).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `POST /playlist/del` —— 删除歌单。
 #[utoipa::path(post, path = "/playlist/del", tag = "playlist", responses((status = 200, body = Object)))]
-async fn playlist_del(State(state): State<AppState>, KgReqSession(s): KgReqSession, Query(q): Query<PlaylistDelQuery>) -> AppResult<Json<Value>> {
+async fn playlist_del(State(state): State<AppState>, KgReqSession(s): KgReqSession, KgSessionKey(k): KgSessionKey, Query(q): Query<PlaylistDelQuery>) -> AppResult<Json<Value>> {
     q.validate()?;
-    Ok(Json(services::playlist::delete_playlist(&state, &s, &q.listid).await?))
+    let listid = q.listid.clone();
+    let v = helpers::with_auto_retry(&state, &k, &s, "/playlist/del", |sess| {
+        let state = state.clone();
+        let listid = listid.clone();
+        async move { services::playlist::delete_playlist(&state, &sess, &listid).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `POST /playlist/tracks/add` —— 添加歌曲到歌单。
 #[utoipa::path(post, path = "/playlist/tracks/add", tag = "playlist", responses((status = 200, body = Object)))]
-async fn playlist_tracks_add(State(state): State<AppState>, KgReqSession(s): KgReqSession, Json(req): Json<AddTracksRequest>) -> AppResult<Json<Value>> {
+async fn playlist_tracks_add(State(state): State<AppState>, KgReqSession(s): KgReqSession, KgSessionKey(k): KgSessionKey, Json(req): Json<AddTracksRequest>) -> AppResult<Json<Value>> {
     req.validate()?;
-    Ok(Json(services::playlist::add_tracks(&state, &s, &req.list_id, &req.songs).await?))
+    let list_id = req.list_id.clone();
+    let songs = req.songs.clone();
+    let v = helpers::with_auto_retry(&state, &k, &s, "/playlist/tracks/add", |sess| {
+        let state = state.clone();
+        let list_id = list_id.clone();
+        let songs = songs.clone();
+        async move { services::playlist::add_tracks(&state, &sess, &list_id, &songs).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 /// `POST /playlist/tracks/del` —— 从歌单删除歌曲。
 #[utoipa::path(post, path = "/playlist/tracks/del", tag = "playlist", responses((status = 200, body = Object)))]
-async fn playlist_tracks_del(State(state): State<AppState>, KgReqSession(s): KgReqSession, Query(q): Query<RemoveTracksQuery>) -> AppResult<Json<Value>> {
+async fn playlist_tracks_del(State(state): State<AppState>, KgReqSession(s): KgReqSession, KgSessionKey(k): KgSessionKey, Query(q): Query<RemoveTracksQuery>) -> AppResult<Json<Value>> {
     q.validate()?;
-    let file_ids: Vec<i64> = q.fileids.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-    Ok(Json(services::playlist::remove_tracks(&state, &s, &q.listid, &file_ids).await?))
+    let listid = q.listid.clone();
+    let fileids_raw = q.fileids.clone();
+    let file_ids: Vec<i64> = fileids_raw.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+    let v = helpers::with_auto_retry(&state, &k, &s, "/playlist/tracks/del", |sess| {
+        let state = state.clone();
+        let listid = listid.clone();
+        let file_ids = file_ids.clone();
+        async move { services::playlist::remove_tracks(&state, &sess, &listid, &file_ids).await }
+    }).await?;
+    Ok(Json(v))
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -123,3 +160,5 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(playlist_tracks_add))
         .routes(routes!(playlist_tracks_del))
 }
+
+
