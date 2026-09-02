@@ -66,6 +66,9 @@ pub async fn album_detail(state: &AppState, session: &KgSession, album_id: &str)
 }
 
 /// 专辑歌曲。POST /v1/album_audio/lite（kg-tid:255）
+///
+/// 上游单页上限由 `ALBUM_MAX_PAGESIZE` 控制（默认 50，酷狗超过返回 invalid param），
+/// 对齐 Flutter 侧 `albumSongs` 按页循环拉取全量的前置约束（e621ac3）。
 pub async fn album_songs(
     state: &AppState,
     session: &KgSession,
@@ -73,6 +76,13 @@ pub async fn album_songs(
     page: i64,
     pagesize: i64,
 ) -> AppResult<Value> {
+    let max = state.config.album_max_pagesize;
+    let orig_pagesize = pagesize;
+    let pagesize = pagesize.clamp(1, max);
+    let page = if page < 1 { 1 } else { page };
+    if orig_pagesize != pagesize {
+        tracing::debug!(requested_pagesize = orig_pagesize, clamped = pagesize, max, "专辑歌曲 pagesize 已夹逼至上限");
+    }
     let body = json!({
         "album_id": album_id,
         "is_buy": 0,

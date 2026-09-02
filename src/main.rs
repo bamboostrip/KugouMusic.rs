@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
         .build()?;
 
     // 6. 组装路由 + Swagger
-    let state = AppState::new(db, http);
+    let state = AppState::new(db, http, cfg.clone());
     let (api_router, api_doc) = routes::app_router(state);
 
     let app = Router::new()

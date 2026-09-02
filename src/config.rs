@@ -20,6 +20,8 @@ pub struct Config {
     #[allow(dead_code)]
     pub kugou_gateway_url: String,
     pub http_timeout: Duration,
+    /// 专辑歌曲单页上限（酷狗上游 `/v1/album_audio/lite` 单页上限 50，超过返回 invalid param）
+    pub album_max_pagesize: i64,
 }
 
 impl Config {
@@ -35,6 +37,11 @@ impl Config {
             .parse::<u64>()
             .context("HTTP_TIMEOUT_SECS 不是合法的秒数")?;
 
+        let album_max_pagesize = env::var("ALBUM_MAX_PAGESIZE")
+            .unwrap_or_else(|_| "50".into())
+            .parse::<i64>()
+            .context("ALBUM_MAX_PAGESIZE 不是合法的整数")?;
+
         Ok(Self {
             host: env::var("APP_HOST").unwrap_or_else(|_| "0.0.0.0".into()),
             port,
@@ -46,6 +53,7 @@ impl Config {
             kugou_gateway_url: env::var("KUGOU_GATEWAY_URL")
                 .unwrap_or_else(|_| "https://gateway.kugou.com".into()),
             http_timeout: Duration::from_secs(timeout_secs),
+            album_max_pagesize: album_max_pagesize.clamp(1, 100),
         })
     }
 

@@ -5,16 +5,19 @@
 
 use sqlx::SqlitePool;
 
+use crate::config::Config;
+
 /// 应用级共享状态。
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
     /// 复用连接池的 HTTPS 客户端，代理上游酷狗时统一用它（transport 层消费）
     pub http: reqwest::Client,
+    pub config: Config,
 }
 
 impl AppState {
-    pub fn new(db: SqlitePool, http: reqwest::Client) -> Self {
-        Self { db, http }
+    pub fn new(db: SqlitePool, http: reqwest::Client, config: Config) -> Self {
+        Self { db, http, config }
     }
 }
