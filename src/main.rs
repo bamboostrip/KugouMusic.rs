@@ -45,8 +45,11 @@ async fn main() -> anyhow::Result<()> {
     let db = init_db(&cfg).await?;
 
     // 5. 复用的上游 HTTP 客户端（代理酷狗时统一用它）
+    // 对齐 Flutter rust 侧的连接池优化（026e67a / 9593a05）：小池化降低车机内存占用，3 闲置/10s 兼顾复用
     let http = reqwest::Client::builder()
         .timeout(cfg.http_timeout)
+        .pool_max_idle_per_host(3)
+        .pool_idle_timeout(Duration::from_secs(10))
         .gzip(true)
         .build()?;
 
