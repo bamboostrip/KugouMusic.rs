@@ -4,6 +4,7 @@
 //! playlist/del（AES-128+RSA PKCS1）、playlist/tracks/add、playlist/tracks/del。
 //! 除 del 外均无加密。所有写操作需登录态。
 
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::{AppError, AppResult};
@@ -180,13 +181,30 @@ pub async fn remove_tracks(
     transport::send(&state.http, session, &req).await
 }
 
+/// 兼容 Dart 侧 camelCase / snake_case 以及数字/字符串混用的灵活字符串反序列化。
+fn flex_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = serde_json::Value::deserialize(deserializer)?;
+    Ok(match v {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        _ => String::new(),
+    })
+}
 /// 添加歌曲项（controller 入参）。
+///
+/// 兼容 Dart `MusicApi._songAddPayload` 的 camelCase（albumId/mixSongId）以及
+/// Rust 侧 snake_case（album_id/mix_song_id / mixsongid），同时允许数字/字符串混用。
 #[derive(Debug, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
 pub struct AddSongItem {
     pub name: String,
     pub hash: String,
+    #[serde(default, alias = "albumId", alias = "album_id", deserialize_with = "flex_string")]
     pub album_id: String,
-    #[serde(rename = "mixsongid")]
+    #[serde(default, alias = "mixSongId", alias = "mix_song_id", alias = "mixsongid", deserialize_with = "flex_string")]
     pub mix_song_id: String,
 }
 

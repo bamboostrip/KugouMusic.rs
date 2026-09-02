@@ -13,11 +13,25 @@ use crate::middleware::KgReqSession;
 use crate::services::{self, playlist::AddSongItem};
 use crate::state::AppState;
 
+fn flex_string_query<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = serde_json::Value::deserialize(deserializer)?;
+    Ok(match v {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        _ => String::new(),
+    })
+}
+
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct PlaylistAddQuery {
     #[validate(length(min = 1, message = "name 不能为空"))]
     #[allow(dead_code)]
     pub name: String,
+    #[serde(alias = "listCreateGid", alias = "global_collection_id", alias = "list_create_gid")]
     #[validate(length(min = 1, message = "list_create_gid 不能为空"))]
     #[allow(dead_code)]
     pub list_create_gid: String,
@@ -28,7 +42,7 @@ pub struct PlaylistCreateQuery {
     #[validate(length(min = 1, message = "name 不能为空"))]
     #[allow(dead_code)]
     pub name: String,
-    #[serde(default = "default_type")]
+    #[serde(default = "default_type", alias = "is_pri", alias = "isPri")]
     #[allow(dead_code)]
     pub r#type: i64,
 }
@@ -36,6 +50,7 @@ fn default_type() -> i64 { 0 }
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct PlaylistDelQuery {
+    #[serde(alias = "listId", alias = "list_id")]
     #[validate(length(min = 1, message = "listid 不能为空"))]
     #[allow(dead_code)]
     pub listid: String,
@@ -43,7 +58,7 @@ pub struct PlaylistDelQuery {
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct AddTracksRequest {
-    #[serde(rename = "ListId")]
+    #[serde(alias = "listId", alias = "listid", alias = "ListId", alias = "list_id", deserialize_with = "flex_string_query", default)]
     #[validate(length(min = 1, message = "ListId 不能为空"))]
     #[allow(dead_code)]
     pub list_id: String,
@@ -54,9 +69,11 @@ pub struct AddTracksRequest {
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct RemoveTracksQuery {
+    #[serde(alias = "listId", alias = "list_id")]
     #[validate(length(min = 1, message = "listid 不能为空"))]
     #[allow(dead_code)]
     pub listid: String,
+    #[serde(alias = "fileIds", alias = "file_ids", alias = "fileIdsStr")]
     #[validate(length(min = 1, message = "fileids 不能为空"))]
     #[allow(dead_code)]
     pub fileids: String,
