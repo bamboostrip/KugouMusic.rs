@@ -16,9 +16,10 @@ use crate::middleware::KgReqSession;
 use crate::services;
 use crate::state::AppState;
 
-/// /search 入参
+/// /search 入参 — Dart 侧发送 keywords，兼容旧参数名 keyword
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct SearchQuery {
+    #[serde(alias = "keyword")]
     #[validate(length(min = 1, message = "关键词不能为空"))]
     pub keywords: String,
     #[serde(default = "default_page")]
@@ -41,9 +42,10 @@ pub struct SearchHotQuery {}
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SearchDefaultQuery {}
 
-/// /search/suggest 入参
+/// /search/suggest 入参 — Dart 侧发送 keywords，兼容 keyword
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct SearchSuggestQuery {
+    #[serde(alias = "keyword")]
     #[validate(length(min = 1, message = "关键词不能为空"))]
     pub keywords: String,
     #[serde(default = "default_album_tip")]
@@ -64,16 +66,18 @@ fn default_correct_tip() -> i64 { 10 }
 fn default_mv_tip() -> i64 { 10 }
 fn default_music_tip() -> i64 { 10 }
 
-/// /search/mixed 入参（注意是 keyword 单数）
+/// /search/mixed 入参（注意是 keyword 单数）— 兼容 keywords
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct SearchMixedQuery {
+    #[serde(alias = "keywords")]
     #[validate(length(min = 1, message = "关键词不能为空"))]
     pub keyword: String,
 }
 
-/// /search/complex 入参
+/// /search/complex 入参 — 兼容 keyword
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct SearchComplexQuery {
+    #[serde(alias = "keyword")]
     #[validate(length(min = 1, message = "关键词不能为空"))]
     pub keywords: String,
     #[serde(default = "default_page")]

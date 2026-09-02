@@ -71,7 +71,8 @@ fn default_pagesize() -> i64 { 30 }
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct PlaylistIdQuery {
-    #[serde(rename = "ids")]
+    // Dart 侧发送 ids，兼容 id / global_collection_id 旧参数
+    #[serde(alias = "id", alias = "global_collection_id")]
     #[validate(length(min = 1, message = "ids 不能为空"))]
     #[allow(dead_code)]
     pub ids: String,
@@ -79,7 +80,7 @@ pub struct PlaylistIdQuery {
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ListIdQuery {
-    #[serde(default, rename = "listid")]
+    #[serde(default, alias = "listId", alias = "list_id", alias = "listid")]
     #[allow(dead_code)]
     pub listid: String,
     #[serde(default = "default_page")]
@@ -141,6 +142,8 @@ async fn playlist_tags(State(state): State<AppState>, KgReqSession(s): KgReqSess
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct PlaylistTrackQuery {
+    // Flutter 侧曾传 ids/detail 等别名，兼容 ids / global_collection_id
+    #[serde(alias = "ids", alias = "global_collection_id")]
     #[validate(length(min = 1, message = "id 不能为空"))]
     pub id: String,
     #[serde(default = "default_page")]

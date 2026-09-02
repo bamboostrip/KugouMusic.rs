@@ -34,6 +34,8 @@ pub struct AlbumDetailQuery {
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct AlbumSongsQuery {
+    // Dart 侧契约原为 id（与 Flutter 侧一致），兼容旧参数名 album_id / albumId
+    #[serde(alias = "album_id", alias = "albumId")]
     #[validate(length(min = 1, message = "id 不能为空"))]
     pub id: String,
     #[serde(default = "default_page")]

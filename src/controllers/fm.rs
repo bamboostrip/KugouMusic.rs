@@ -18,9 +18,11 @@ pub struct FmEmptyQuery {}
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct FmSongsQuery {
+    // Dart 契约 fmid/type，兼容旧参数 fm_ids/fmtype
+    #[serde(alias = "fm_ids", alias = "fmIds")]
     #[validate(length(min = 1, message = "fmid 不能为空"))]
     pub fmid: String,
-    #[serde(default = "default_fmtype")]
+    #[serde(default = "default_fmtype", alias = "fmtype")]
     #[allow(dead_code)]
     pub r#type: i64,
     #[serde(default = "default_offset")]
@@ -36,6 +38,7 @@ fn default_size() -> i64 { 20 }
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct FmImageQuery {
+    #[serde(alias = "fm_ids", alias = "fmIds")]
     #[validate(length(min = 1, message = "fmid 不能为空"))]
     pub fmid: String,
 }
